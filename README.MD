@@ -1,5 +1,9 @@
 # Litewire Framework
 
+```bash
+npm i litewire
+```
+
 ## Complete Architecture Manual & Reference Guide
 
 A comprehensive technical breakdown of the HTML-driven AJAX engine, dynamic component loader, DOM swapping, state management, and lifecycle events.
