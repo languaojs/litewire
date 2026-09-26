@@ -1,19 +1,33 @@
 {
   "name": "litewire",
   "version": "1.0.0",
-  "description": "A lightweight HTML-driven AJAX and dynamic component loader library.",
+  "description": "A lightweight HTML-driven AJAX engine and dynamic ES module component loader.",
   "main": "src/litewire.js",
+  "module": "src/litewire.js",
   "type": "module",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "exports": {
+    ".": "./src/litewire.js"
   },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "ajax",
-    "html-over-the-wire",
     "htmx",
+    "html-over-the-wire",
     "components",
     "dom-observer"
   ],
-  "author": "Zainurrahman",
-  "license": "MIT"
+  "author": "Zainurrahman <languaojs@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/languaojs/litewire.git"
+  },
+  "bugs": {
+    "url": "https://github.com/languaojs/litewire/issues"
+  },
+  "homepage": "https://github.com/languaojs/litewire#readme"
 }

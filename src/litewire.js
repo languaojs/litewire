@@ -233,8 +233,15 @@ class Litewire {
     }
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => window.litewire = new Litewire());
-} else {
-    window.litewire = new Litewire();
+export default Litewire;
+
+// Auto-instantiate in browser environments if not loaded as a module
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.litewire) window.litewire = new Litewire();
+        });
+    } else {
+        if (!window.litewire) window.litewire = new Litewire();
+    }
 }
