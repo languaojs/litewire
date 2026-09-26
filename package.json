@@ -1,0 +1,19 @@
+{
+  "name": "litewire",
+  "version": "1.0.0",
+  "description": "A lightweight HTML-driven AJAX and dynamic component loader library.",
+  "main": "src/litewire.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ajax",
+    "html-over-the-wire",
+    "htmx",
+    "components",
+    "dom-observer"
+  ],
+  "author": "Zainurrahman",
+  "license": "MIT"
+}
