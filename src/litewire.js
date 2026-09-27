@@ -97,7 +97,7 @@ class Litewire {
         if (!path) return;
 
         const cleanPath = path.replace(/^\/+/, '');
-        const url = `${this.baseUrl}/${cleanPath}`;
+        let url = `${this.baseUrl}/${cleanPath}`;
 
         const options = { method: method.toUpperCase(), headers: {} };
 
@@ -106,7 +106,21 @@ class Litewire {
             options.headers['X-CSRF-TOKEN'] = csrfToken;
         }
 
-        if (method !== 'get') {
+        if (method === 'get') {
+            const form = el.tagName === 'FORM' ? el : el.closest('form');
+            let params = new URLSearchParams();
+
+            if (form) {
+                params = new URLSearchParams(new FormData(form));
+            } else if (el.name && el.value !== undefined) {
+                params.append(el.name, el.value);
+            }
+
+            const queryString = params.toString();
+            if (queryString) {
+                url += (url.includes('?') ? '&' : '?') + queryString;
+            }
+        } else {
             const form = el.tagName === 'FORM' ? el : el.closest('form');
             if (form) {
                 options.body = new FormData(form);

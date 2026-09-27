@@ -61,8 +61,8 @@ To support deployment in deeply nested directories or custom app sub-paths, Lite
 ```javascript
 // Custom manual instantiation with options
 const customLitewire = new Litewire({
-    baseUrl: '[https://api.myproject.com](https://api.myproject.com)',
-    loadingClass: 'is-loading' // Class applied to active triggers and indicators
+  baseUrl: "[https://api.myproject.com](https://api.myproject.com)",
+  loadingClass: "is-loading", // Class applied to active triggers and indicators
 });
 ```
 
@@ -72,18 +72,18 @@ const customLitewire = new Litewire({
 
 All core functionalities are driven by attaching `lw-*` attributes directly to standard HTML tags.
 
-| Attribute | Accepted Values | Default | Functional Description |
-|---|---|---|---|
-| `lw-get` | Relative / Absolute Path | None | Executes an HTTP GET request to the specified endpoint. |
-| `lw-post` | Relative / Absolute Path | None | Executes an HTTP POST request. Submits form payload if bound to or inside a `<form>`. |
-| `lw-put` | Relative / Absolute Path | None | Executes an HTTP PUT request with FormData payload attachment. |
-| `lw-delete` | Relative / Absolute Path | None | Executes an HTTP DELETE request. |
-| `lw-trigger` | `click`, `submit`, `load`, custom | Contextual | Overrides trigger event. Defaults to `submit` for forms, `click` for interactive tags. `load` fires instantly. |
-| `lw-target` | CSS Selector | Self Element | Specifies the container element where the returned HTML response will be rendered. |
-| `lw-swap` | `innerHTML`, `outerHTML`, `prepend`, `append` | `innerHTML` | Controls how the received HTML response replaces or integrates into the target element. |
-| `lw-indicator` | CSS Selector | `.litewire-indicator` | Specifies target loading elements. Automatically toggles the active `loadingClass` during request execution. |
-| `lw-push-url` | `true`, `false`, Custom Path | `false` | Pushes a new state to the browser history, caching DOM contents for native back/forward navigation. |
-| `lw-component` | JS File Path | None | Asynchronously imports a JavaScript module and mounts it directly onto the host DOM element. |
+| Attribute      | Accepted Values                               | Default               | Functional Description                                                                                         |
+| -------------- | --------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `lw-get`       | Relative / Absolute Path                      | None                  | Executes an HTTP GET request to the specified endpoint.                                                        |
+| `lw-post`      | Relative / Absolute Path                      | None                  | Executes an HTTP POST request. Submits form payload if bound to or inside a `<form>`.                          |
+| `lw-put`       | Relative / Absolute Path                      | None                  | Executes an HTTP PUT request with FormData payload attachment.                                                 |
+| `lw-delete`    | Relative / Absolute Path                      | None                  | Executes an HTTP DELETE request.                                                                               |
+| `lw-trigger`   | `click`, `submit`, `load`, custom             | Contextual            | Overrides trigger event. Defaults to `submit` for forms, `click` for interactive tags. `load` fires instantly. |
+| `lw-target`    | CSS Selector                                  | Self Element          | Specifies the container element where the returned HTML response will be rendered.                             |
+| `lw-swap`      | `innerHTML`, `outerHTML`, `prepend`, `append` | `innerHTML`           | Controls how the received HTML response replaces or integrates into the target element.                        |
+| `lw-indicator` | CSS Selector                                  | `.litewire-indicator` | Specifies target loading elements. Automatically toggles the active `loadingClass` during request execution.   |
+| `lw-push-url`  | `true`, `false`, Custom Path                  | `false`               | Pushes a new state to the browser history, caching DOM contents for native back/forward navigation.            |
+| `lw-component` | JS File Path                                  | None                  | Asynchronously imports a JavaScript module and mounts it directly onto the host DOM element.                   |
 
 ---
 
@@ -108,33 +108,33 @@ When an element with `lw-component="path/to/module.js"` is injected into the DOM
 
 ```html
 <!-- Target element containing component directives and dataset parameters -->
-<div 
-  lw-component="assets/js/uploader.js" 
-  data-max-files="5" 
-  data-allowed-types="image/png,image/jpeg">
-</div>
+<div
+  lw-component="assets/js/uploader.js"
+  data-max-files="5"
+  data-allowed-types="image/png,image/jpeg"
+></div>
 ```
 
 #### JavaScript Module (`assets/js/uploader.js`)
 
 ```javascript
 export default class ImageUploader {
-    constructor(element, params) {
-        this.container = element;
-        this.maxFiles = params.maxFiles || 1;
-        this.allowedTypes = params.allowedTypes || '*';
-        
-        this.render();
-    }
+  constructor(element, params) {
+    this.container = element;
+    this.maxFiles = params.maxFiles || 1;
+    this.allowedTypes = params.allowedTypes || "*";
 
-    render() {
-        this.container.innerHTML = `
+    this.render();
+  }
+
+  render() {
+    this.container.innerHTML = `
             <div class="upload-box">
                 <p>Upload up to ${this.maxFiles} files (${this.allowedTypes})</p>
                 <input type="file" multiple accept="${this.allowedTypes}">
             </div>
         `;
-    }
+  }
 }
 ```
 
@@ -175,22 +175,22 @@ Enabling history tracking via `lw-push-url="true"` allows AJAX-driven applicatio
 
 Litewire dispatches standard, bubbling DOM events during the request lifecycles. Custom JavaScript code can hook into these lifecycle stages using standard `addEventListener` calls.
 
-| Event Name | `event.detail` | Description / Usage |
-|---|---|---|
-| `litewire:beforeRequest` | `null` | Fires immediately before the HTTP request is initiated. Ideal for disabling inputs or custom client validation. |
-| `litewire:afterRequest` | `null` | Fires after the request succeeds and the HTML content swap is complete. Ideal for triggering animations. |
-| `litewire:error` | `{ error: Error }` | Fires if a network error occurs or the HTTP response returns an error status (non-2xx). |
+| Event Name               | `event.detail`     | Description / Usage                                                                                             |
+| ------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `litewire:beforeRequest` | `null`             | Fires immediately before the HTTP request is initiated. Ideal for disabling inputs or custom client validation. |
+| `litewire:afterRequest`  | `null`             | Fires after the request succeeds and the HTML content swap is complete. Ideal for triggering animations.        |
+| `litewire:error`         | `{ error: Error }` | Fires if a network error occurs or the HTTP response returns an error status (non-2xx).                         |
 
 ### Lifecycle Hooks Example
 
 ```javascript
 // Global logging and notification system integration
-document.addEventListener('litewire:beforeRequest', (e) => {
-    console.log('Initiating Litewire request from:', e.target);
+document.addEventListener("litewire:beforeRequest", (e) => {
+  console.log("Initiating Litewire request from:", e.target);
 });
 
-document.addEventListener('litewire:error', (e) => {
-    alert(`Request failed: ${e.detail.error.message}`);
+document.addEventListener("litewire:error", (e) => {
+  alert(`Request failed: ${e.detail.error.message}`);
 });
 ```
 
@@ -205,7 +205,7 @@ Litewire natively secures outgoing write operations (`POST`, `PUT`, `DELETE`) ag
 Before dispatching non-GET requests, Litewire scans the host page head for a CSRF meta tag:
 
 ```html
-<meta name="csrf-token" content="abc123securehash456">
+<meta name="csrf-token" content="abc123securehash456" />
 ```
 
 If detected, Litewire automatically includes the retrieved token into the HTTP request headers:
@@ -222,14 +222,15 @@ X-CSRF-TOKEN: abc123securehash456
 
 ```html
 <!-- Live search input updating target table and browser address bar -->
-<input 
-  type="text" 
-  name="q" 
-  placeholder="Search users..." 
-  lw-get="/users/search" 
-  lw-trigger="keyup" 
-  lw-target="#user-table-body" 
-  lw-push-url="true">
+<input
+  type="text"
+  name="q"
+  placeholder="Search users..."
+  lw-get="/users/search"
+  lw-trigger="keyup"
+  lw-target="#user-table-body"
+  lw-push-url="true"
+/>
 
 <table>
   <tbody id="user-table-body">
@@ -238,14 +239,47 @@ X-CSRF-TOKEN: abc123securehash456
 </table>
 ```
 
+```php
+// Route
+Route::get('/users/search', 'UsersController@search')->name('user.search');
+
+//UserController
+public function search(Request $request)
+    {
+        $query = $request->input('q', '');
+        $search = $this->model('UsersModel')->searchUser($query);
+        $data = [
+            'users' => $search
+        ];
+
+        $html = $this->render('users/search', $data);
+        return $this->response($html);
+    }
+
+//Blade
+@if (!empty($users))
+    @foreach ($users as $index => $user)
+        <tr>
+            <td>{{ $index + 1 }}</td>
+            <td>{{ $user['fullname'] }}</td>
+        </tr>
+    @endforeach
+@endif
+```
+
 ### Pattern B: Form Submission with Indicator & Append Swap
 
 ```html
-<form lw-post="/comments/add" lw-target="#comments-list" lw-swap="append" lw-indicator="#spinner">
+<form
+  lw-post="/comments/add"
+  lw-target="#comments-list"
+  lw-swap="append"
+  lw-indicator="#spinner"
+>
   <textarea name="comment" required placeholder="Write a comment..."></textarea>
-  
+
   <button type="submit">
-    Post Comment 
+    Post Comment
     <span id="spinner" class="litewire-indicator hidden">Posting...</span>
   </button>
 </form>
@@ -259,8 +293,12 @@ X-CSRF-TOKEN: abc123securehash456
 
 ```html
 <!-- Automatically fetches and replaces content once page loads -->
-<div lw-get="/analytics/widget" lw-trigger="load" lw-target="#analytics-container">
-    <p>Loading real-time analytics data...</p>
+<div
+  lw-get="/analytics/widget"
+  lw-trigger="load"
+  lw-target="#analytics-container"
+>
+  <p>Loading real-time analytics data...</p>
 </div>
 
 <div id="analytics-container"></div>
