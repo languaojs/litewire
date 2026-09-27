@@ -3,6 +3,7 @@
 ```bash
 npm i litewire
 ```
+(Or just download the JS file and add it to HTML with the type of module)
 
 ## Complete Architecture Manual & Reference Guide
 
