@@ -1,6 +1,6 @@
 {
   "name": "litewire",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight HTML-driven AJAX engine and dynamic ES module component loader.",
   "main": "src/litewire.js",
   "module": "src/litewire.js",
