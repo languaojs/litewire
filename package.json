@@ -1,6 +1,6 @@
 {
   "name": "litewire",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "description": "A lightweight HTML-driven request engine with reactive state and dynamic ES module components.",
   "main": "./litewire.js",
   "module": "./litewire.js",
@@ -11,7 +11,7 @@
   },
   "files": [
     "litewire.js",
-    "README.MD"
+    "README.md"
   ],
   "keywords": [
     "ajax",
