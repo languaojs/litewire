@@ -1,306 +1,404 @@
-# Litewire Framework
+# Litewire 1.0.2
 
-```bash
-npm i litewire
-```
-(Or just download the JS file and add it to HTML with the type of module)
+Litewire is a browser-side HTML-over-the-wire library. It binds requests and
+reactive behaviors to HTML attributes, swaps server-rendered HTML into the
+page, and can load ES module components on demand.
 
-## Complete Architecture Manual & Reference Guide
+## Contents
 
-A comprehensive technical breakdown of the HTML-driven AJAX engine, dynamic component loader, DOM swapping, state management, and lifecycle events.
+- [Install and start](#install-and-start)
+- [Configuration](#configuration)
+- [AJAX requests](#ajax-requests)
+- [Reactive state and bindings](#reactive-state-and-bindings)
+- [Dynamic components](#dynamic-components)
+- [HTML swaps and DOM updates](#html-swaps-and-dom-updates)
+- [Browser history](#browser-history)
+- [Lifecycle events](#lifecycle-events)
+- [CSRF](#csrf)
+- [Security considerations](#security-considerations)
+- [API reference](#api-reference)
 
----
+## Install and start
 
-## Table of Contents
+### Use the browser file
 
-1. [Architecture Overview & Lifecycle](#1-architecture-overview--lifecycle)
-2. [Core Configuration & Initialization](#2-core-configuration--initialization)
-3. [Attribute Reference API](#3-attribute-reference-api)
-4. [Dynamic ES Module Loader (`lw-component`)](#4-dynamic-es-module-loader-lw-component)
-5. [DOM Swapping & Navigation Mechanisms](#5-dom-swapping--navigation-mechanisms)
-6. [History & State Caching](#6-history--state-caching)
-7. [Event System & Lifecycle Hooks](#7-event-system--lifecycle-hooks)
-8. [CSRF & Security Protocols](#8-csrf--security-protocols)
-9. [Practical Implementation Patterns](#9-practical-implementation-patterns)
+Download `litewire.js` and load it as an ES module:
 
----
-
-## 1. Architecture Overview & Lifecycle
-
-**Litewire** is an HTML-first AJAX engine and dynamic component loader designed to build modern, interactive single-page-like applications with minimal client-side JavaScript configuration. By extending standard HTML elements with custom `lw-*` attributes, Litewire automatically intercepts user interactions, initiates asynchronous HTTP requests, updates specific DOM regions, and manages dynamic ES Module lifecycles.
-
-> **Core Principles**  
-> Litewire eliminates the need for full-page reloads and complex SPA frameworks by leveraging declarative markup, dynamic MutationObservers, and native browser features like `fetch()` and `history.pushState()`.
-
-### Lifecycle Flow
-
-1. **Initialization:** The class resolves the application's base URL and attaches DOM observers.
-2. **Document Scanning:** Existing DOM nodes are scanned for request triggers and dynamic components.
-3. **Event Binding:** Intercepts clicks, form submissions, and page load triggers automatically.
-4. **Execution:** Sends non-blocking background HTTP requests with built-in CSRF security headers.
-5. **Swap & Mount:** Replaces target DOM regions with backend HTML and automatically boots dynamic JS components on newly introduced elements.
-
----
-
-## 2. Core Configuration & Initialization
-
-Litewire auto-instantiates as soon as the DOM is ready, exposing its instance globally on `window.litewire`.
-
-### Base URL Resolution Priority
-
-To support deployment in deeply nested directories or custom app sub-paths, Litewire resolves its root URL using a four-tier fallback mechanism:
-
-```text
-1. Constructor Option:  new Litewire({ baseUrl: '[https://example.com/api](https://example.com/api)' })
-2. Meta Tag Element:    <meta name="base-url" content="[https://example.com](https://example.com)">
-3. Global App Config:  window.AppConfig.baseUrl
-4. Window Location:     window.location.origin (Default)
+```html
+<script type="module" src="/js/litewire.js"></script>
 ```
 
-### Instantiation Example
+Litewire creates `window.litewire` when the document is ready, unless that
+global already exists. It scans the page, binds supported attributes, and
+continues scanning elements added later.
 
-```javascript
-// Custom manual instantiation with options
-const customLitewire = new Litewire({
-  baseUrl: "[https://api.myproject.com](https://api.myproject.com)",
-  loadingClass: "is-loading", // Class applied to active triggers and indicators
+### Use the npm package
+
+If version 1.0.2 is available from your configured npm registry:
+
+```sh
+npm install litewire@1.0.2
+```
+
+Import the package from your application's JavaScript entry point:
+
+```js
+import "litewire";
+```
+
+The package module auto-initializes in a browser environment. Do not create a
+second instance unless you intentionally want an additional set of listeners
+and observers.
+
+### First request
+
+```html
+<button
+  lw-get="/hello"
+  lw-target="#result"
+>
+  Load greeting
+</button>
+
+<div id="result">The response will appear here.</div>
+```
+
+Litewire sends a GET request when the button is clicked and replaces the
+contents of `#result` with the response HTML.
+
+## Configuration
+
+Litewire resolves its base URL in this order:
+
+1. `baseUrl` constructor option
+2. `<meta name="base-url" content="...">`
+3. `window.AppConfig.baseUrl`
+4. `window.location.origin`
+
+The default loading class is `litewire-request`. Configure these values before
+Litewire auto-initializes by setting a meta tag or `window.AppConfig` before
+loading the module:
+
+```html
+<meta name="base-url" content="https://example.com/app">
+<script>
+  window.AppConfig = { baseUrl: "https://example.com/app" };
+</script>
+<script type="module" src="/js/litewire.js"></script>
+```
+
+The constructor also accepts options when you instantiate the exported class
+yourself:
+
+```js
+window.litewire = {};
+const { default: Litewire } = await import("./litewire.js");
+
+window.litewire = new Litewire({
+  baseUrl: "https://example.com/app",
+  loadingClass: "is-loading",
 });
 ```
 
----
+The placeholder prevents the module's browser auto-initializer from creating
+another instance before your configured instance is constructed.
 
-## 3. Attribute Reference API
+Request and component paths are joined to the resolved base URL. Leading
+slashes are removed from the supplied path before joining.
 
-All core functionalities are driven by attaching `lw-*` attributes directly to standard HTML tags.
+## AJAX requests
 
-| Attribute      | Accepted Values                               | Default               | Functional Description                                                                                         |
-| -------------- | --------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `lw-get`       | Relative / Absolute Path                      | None                  | Executes an HTTP GET request to the specified endpoint.                                                        |
-| `lw-post`      | Relative / Absolute Path                      | None                  | Executes an HTTP POST request. Submits form payload if bound to or inside a `<form>`.                          |
-| `lw-put`       | Relative / Absolute Path                      | None                  | Executes an HTTP PUT request with FormData payload attachment.                                                 |
-| `lw-delete`    | Relative / Absolute Path                      | None                  | Executes an HTTP DELETE request.                                                                               |
-| `lw-trigger`   | `click`, `submit`, `load`, custom             | Contextual            | Overrides trigger event. Defaults to `submit` for forms, `click` for interactive tags. `load` fires instantly. |
-| `lw-target`    | CSS Selector                                  | Self Element          | Specifies the container element where the returned HTML response will be rendered.                             |
-| `lw-swap`      | `innerHTML`, `outerHTML`, `prepend`, `append` | `innerHTML`           | Controls how the received HTML response replaces or integrates into the target element.                        |
-| `lw-indicator` | CSS Selector                                  | `.litewire-indicator` | Specifies target loading elements. Automatically toggles the active `loadingClass` during request execution.   |
-| `lw-push-url`  | `true`, `false`, Custom Path                  | `false`               | Pushes a new state to the browser history, caching DOM contents for native back/forward navigation.            |
-| `lw-component` | JS File Path                                  | None                  | Asynchronously imports a JavaScript module and mounts it directly onto the host DOM element.                   |
-
----
-
-## 4. Dynamic ES Module Loader (`lw-component`)
-
-Litewire features a client-side component loader capable of fetching and initializing JavaScript ES modules on demand without requiring heavy bundle configurations or static page imports.
-
-### Component Mounting Process
-
-When an element with `lw-component="path/to/module.js"` is injected into the DOM:
-
-1. Litewire resolves the full script path against `this.baseUrl`.
-2. Executes a native dynamic `import(fullPath)` statement.
-3. Extracts component constructors or functions via fallback export resolution:
-   `module.default` → `module.imageUploader` → `Object.values(module)[0]`
-4. Instantiates the module using `new componentFn(el, params)` or direct function execution.
-5. Passes all `data-*` HTML attributes as an object to the component's `params` argument.
-
-### Component Implementation Example
-
-#### HTML Markup
+Litewire recognizes `lw-get`, `lw-post`, `lw-put`, and `lw-delete`. It binds
+forms to `submit` by default and other elements to `click`. Set `lw-trigger` to
+choose a different event or to run a request when the element is scanned:
 
 ```html
-<!-- Target element containing component directives and dataset parameters -->
+<form lw-post="/messages" lw-target="#messages">
+  <label>
+    Message
+    <input name="message" required>
+  </label>
+  <button type="submit">Send</button>
+</form>
+
+<div id="messages"></div>
+```
+
+For GET requests, form fields are encoded as URL query parameters. For POST,
+PUT, and DELETE requests, a containing form is sent as `FormData`. If the
+trigger is not in a form, no request body is added.
+
+```html
+<input
+  name="q"
+  lw-get="/search"
+  lw-trigger="keyup"
+  lw-target="#results"
+  lw-indicator="#search-status"
+>
+<span id="search-status" class="litewire-indicator">Searching…</span>
+<div id="results"></div>
+```
+
+When a request starts, Litewire adds the configured loading class to the
+trigger and its indicators. Indicators default to `.litewire-indicator`
+descendants of the trigger; `lw-indicator` can instead specify a document-wide
+CSS selector. Litewire removes the class when the request finishes, whether it
+succeeds or fails.
+
+Use `lw-trigger="load"` with a request attribute to start a request as soon as
+the element is scanned:
+
+```html
+<section
+  lw-get="/account/summary"
+  lw-trigger="load"
+  lw-target="#account-summary"
+>
+  Loading account summary…
+</section>
+<div id="account-summary"></div>
+```
+
+## Reactive state and bindings
+
+Litewire 1.0.2 adds a small reactive layer using `lw:state`, `lw:model`,
+`lw:text`, `lw:show`, and event-expression attributes. The colon in these
+attribute names is intentional.
+
+### Local state
+
+Put `lw:state` on an element to create state for that element and its
+descendants. Its value must be a JavaScript expression that evaluates to an
+object:
+
+```html
+<section lw:state="{ count: 0, visible: true }">
+  <button lw:click="count++">Count: <span lw:text="count"></span></button>
+  <p lw:show="visible">This paragraph can be hidden.</p>
+  <button lw:click="visible = !visible">Toggle paragraph</button>
+</section>
+```
+
+Assignments and deletions of top-level state properties trigger rendering of
+descendant `lw:text` and `lw:show` bindings owned by that state root. State is
+shallowly reactive: mutating a nested object or array in place does not itself
+trigger a render. Replace the top-level property to trigger one, for example
+`settings = { ...settings, enabled: false }`.
+
+Nested `lw:state` elements establish their own state scope. A binding uses the
+nearest ancestor state root. Bindings outside a state root use Litewire's
+global models instead.
+
+### Text and visibility
+
+- `lw:text="expression"` evaluates the expression and writes its result as
+  text. `null` and `undefined` render as an empty string.
+- `lw:show="expression"` sets the element's `hidden` property based on the
+  truthiness of the result.
+
+Expressions are evaluated when the element is first scanned and again when
+their owning local state renders. Global model updates also update matching
+`lw:text` bindings.
+
+### Form models
+
+```html
+<div lw:state="{ name: '' }">
+  <label>
+    Your name
+    <input lw:model="name">
+  </label>
+  <p>Hello, <span lw:text="name"></span>.</p>
+</div>
+```
+
+The default `lw:model` and `lw:model.live` listen for `input`.
+`lw:model.change` listens for `change`, and `lw:model.blur` listens for `blur`.
+For checkboxes, the model value is a boolean; for radio inputs, it is the
+checked value or `null`; other controls use their value.
+
+Without a local `lw:state` root, models are stored globally and can be read or
+written with the instance methods `litewire.getModel(name)` and
+`litewire.setModel(name, value)`. Global model changes dispatch a
+`litewire:model` event on `document`, with `{ name, value }` in `event.detail`.
+
+A model name beginning with `#` or `.` is treated as a CSS selector instead of
+a state key. Litewire copies the control's value to matching elements (to
+`value` for form controls, otherwise to `textContent`) and dispatches
+`litewire:model` on each target with `{ value }` in `event.detail`.
+
+### Event expressions
+
+Supported event attributes are:
+
+```text
+lw:click   lw:input   lw:change   lw:submit
+lw:keydown lw:keyup   lw:focus    lw:blur
+```
+
+The attribute value is evaluated when its event fires. Within the expression,
+the nearest local state properties (or global models) are in scope. Special
+values are available:
+
+- `$event`: the DOM event
+- `$el`: the element carrying the directive
+- `$value`: the current value of that element
+- `$state`: the current state object
+- `$wire`: the Litewire instance
+
+```html
+<div lw:state="{ query: '' }">
+  <input lw:model="query">
+  <button lw:click="console.log(query, $event)">Log query</button>
+</div>
+```
+
+Supported event modifiers:
+
+| Modifier | Behavior |
+|---|---|
+| `.prevent` | Calls `preventDefault()` |
+| `.stop` | Calls `stopPropagation()` |
+| `.once` | Runs the handler at most once |
+| `.capture` | Registers the listener in capture phase |
+| `.passive` | Registers a passive listener |
+| `.self` | Runs only when the event target is the directive element |
+| `.outside` | Runs only when the event target is outside the directive element |
+| `.window` | Registers the listener on `window` |
+| `.document` | Registers the listener on `document` |
+| `.debounce` | Delays execution until events stop for 250 ms |
+| `.throttle` | Runs at most once per 250 ms |
+
+Modifiers can be combined, for example `lw:click.prevent.once="save()"`.
+
+## Dynamic components
+
+An element with `lw-component` dynamically imports a JavaScript module. The
+path is joined to Litewire's base URL. Litewire selects the module's default
+export first, then a named `imageUploader` export, then the first export. If
+the selected export is a function, it is called with the host element and its
+`data-*` attributes converted to an object:
+
+```html
 <div
-  lw-component="assets/js/uploader.js"
-  data-max-files="5"
-  data-allowed-types="image/png,image/jpeg"
+  lw-component="components/greeting.js"
+  data-user-name="Ada"
 ></div>
 ```
 
-#### JavaScript Module (`assets/js/uploader.js`)
-
-```javascript
-export default class ImageUploader {
+```js
+// /app/components/greeting.js
+export default class Greeting {
   constructor(element, params) {
-    this.container = element;
-    this.maxFiles = params.maxFiles || 1;
-    this.allowedTypes = params.allowedTypes || "*";
-
-    this.render();
-  }
-
-  render() {
-    this.container.innerHTML = `
-            <div class="upload-box">
-                <p>Upload up to ${this.maxFiles} files (${this.allowedTypes})</p>
-                <input type="file" multiple accept="${this.allowedTypes}">
-            </div>
-        `;
+    element.textContent = `Hello, ${params.userName}!`;
   }
 }
 ```
 
----
+New components inserted by a swap or added to the document are discovered
+automatically. A given element is mounted only once.
 
-## 5. DOM Swapping & Navigation Mechanisms
+## HTML swaps and DOM updates
 
-Litewire supports multiple strategies for swapping returned server HTML responses into target elements using the `lw-swap` attribute.
+Set `lw-target` to a CSS selector to choose where a response is inserted. If
+omitted, the element that triggered the request is the target. `lw-swap`
+controls how response HTML is applied:
 
-### Swap Modes
+| Value | Behavior |
+|---|---|
+| `innerHTML` (default) | Replaces the target's contents |
+| `outerHTML` | Replaces the target element |
+| `prepend` | Inserts response HTML at the beginning of the target |
+| `append` | Inserts response HTML at the end of the target |
 
-- **`innerHTML` (Default):** Replaces the complete inner HTML content of the target container.
-- **`outerHTML`:** Completely replaces the target element itself with the server response.
-- **`prepend`:** Inserts the new server HTML snippet right before the first child inside the target element.
-- **`append`:** Appends the new server HTML snippet right after the last child inside the target element.
+Litewire scans swapped content and mounts its components. It also observes
+added DOM elements so directives in newly inserted content are bound
+automatically.
 
-### Automated Mutation Monitoring
+## Browser history
 
-Litewire uses an internal `MutationObserver` attached to `document.body`. Whenever new DOM elements are appended via AJAX swaps, standard page renders, or dynamic JS scripts, Litewire automatically scans and binds all newly discovered `lw-*` elements and mounts dynamic `lw-component` directives seamlessly.
-
----
-
-## 6. History & State Caching
-
-Enabling history tracking via `lw-push-url="true"` allows AJAX-driven applications to retain full browser history support, enabling smooth back-and-forward navigation without page refreshes.
-
-### How State Caching Works
-
-1. When a request completes successfully, Litewire captures the target container's current `innerHTML`.
-2. Saves an object containing `{ litewireUrl, targetSelector, html }` into `window.history.state`.
-3. When users press the browser's **Back** or **Forward** buttons, a `popstate` event fires.
-4. Litewire retrieves the cached HTML snippet directly from history state and restores the DOM instantly without initiating network requests.
-5. If no cached HTML state exists, Litewire seamlessly falls back to re-fetching the current location URL.
-
----
-
-## 7. Event System & Lifecycle Hooks
-
-Litewire dispatches standard, bubbling DOM events during the request lifecycles. Custom JavaScript code can hook into these lifecycle stages using standard `addEventListener` calls.
-
-| Event Name               | `event.detail`     | Description / Usage                                                                                             |
-| ------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `litewire:beforeRequest` | `null`             | Fires immediately before the HTTP request is initiated. Ideal for disabling inputs or custom client validation. |
-| `litewire:afterRequest`  | `null`             | Fires after the request succeeds and the HTML content swap is complete. Ideal for triggering animations.        |
-| `litewire:error`         | `{ error: Error }` | Fires if a network error occurs or the HTTP response returns an error status (non-2xx).                         |
-
-### Lifecycle Hooks Example
-
-```javascript
-// Global logging and notification system integration
-document.addEventListener("litewire:beforeRequest", (e) => {
-  console.log("Initiating Litewire request from:", e.target);
-});
-
-document.addEventListener("litewire:error", (e) => {
-  alert(`Request failed: ${e.detail.error.message}`);
-});
-```
-
----
-
-## 8. CSRF & Security Protocols
-
-Litewire natively secures outgoing write operations (`POST`, `PUT`, `DELETE`) against Cross-Site Request Forgery (CSRF) attacks.
-
-### Automatic Token Attachment
-
-Before dispatching non-GET requests, Litewire scans the host page head for a CSRF meta tag:
+Set `lw-push-url="true"` to push the request URL to browser history, or provide
+a custom URL as the attribute value:
 
 ```html
-<meta name="csrf-token" content="abc123securehash456" />
-```
-
-If detected, Litewire automatically includes the retrieved token into the HTTP request headers:
-
-```text
-X-CSRF-TOKEN: abc123securehash456
-```
-
----
-
-## 9. Practical Implementation Patterns
-
-### Pattern A: Instant Dynamic Search Table
-
-```html
-<!-- Live search input updating target table and browser address bar -->
-<input
-  type="text"
-  name="q"
-  placeholder="Search users..."
-  lw-get="/users/search"
-  lw-trigger="keyup"
-  lw-target="#user-table-body"
+<a
+  href="/products"
+  lw-get="/products"
+  lw-target="#page"
   lw-push-url="true"
-/>
-
-<table>
-  <tbody id="user-table-body">
-    <!-- Table rows updated dynamically -->
-  </tbody>
-</table>
+>
+  Products
+</a>
 ```
 
-```php
-// Route
-Route::get('/users/search', 'UsersController@search')->name('user.search');
+Litewire stores the URL, target selector, and target HTML in history state.
+When navigating with Back or Forward, it restores cached HTML when the state
+contains a selector and markup and the target still exists. Otherwise it
+attempts to fetch the stored URL. This caches only the selected target's HTML,
+not the complete document or JavaScript state.
 
-//UserController
-public function search(Request $request)
-    {
-        $query = $request->input('q', '');
-        $search = $this->model('UsersModel')->searchUser($query);
-        $data = [
-            'users' => $search
-        ];
+## Lifecycle events
 
-        $html = $this->render('users/search', $data);
-        return $this->response($html);
-    }
+Litewire dispatches bubbling events from the request trigger:
 
-//Blade
-@if (!empty($users))
-    @foreach ($users as $index => $user)
-        <tr>
-            <td>{{ $index + 1 }}</td>
-            <td>{{ $user['fullname'] }}</td>
-        </tr>
-    @endforeach
-@endif
+| Event | `event.detail` | When it fires |
+|---|---|---|
+| `litewire:beforeRequest` | — | Immediately before sending a request |
+| `litewire:afterRequest` | — | After a successful response has been swapped |
+| `litewire:error` | `{ error }` | On a network failure or non-success HTTP response |
+
+Reactive local state also dispatches `litewire:render` from its state root
+after a render, with `{ state }` in `event.detail`.
+
+```js
+document.addEventListener("litewire:error", (event) => {
+  console.error("Litewire request failed:", event.detail.error);
+});
+
+document.addEventListener("litewire:render", (event) => {
+  console.log("State rendered:", event.detail.state);
+});
 ```
 
-### Pattern B: Form Submission with Indicator & Append Swap
+## CSRF
+
+When this meta tag is present, Litewire adds its token as the
+`X-CSRF-TOKEN` header to outgoing requests:
 
 ```html
-<form
-  lw-post="/comments/add"
-  lw-target="#comments-list"
-  lw-swap="append"
-  lw-indicator="#spinner"
->
-  <textarea name="comment" required placeholder="Write a comment..."></textarea>
-
-  <button type="submit">
-    Post Comment
-    <span id="spinner" class="litewire-indicator hidden">Posting...</span>
-  </button>
-</form>
-
-<div id="comments-list">
-  <!-- New comments prepended or appended dynamically -->
-</div>
+<meta name="csrf-token" content="your-server-generated-token">
 ```
 
-### Pattern C: Lazy-Loading Section on Page Load
+The server must still validate the token and enforce its own authorization and
+request protections.
 
-```html
-<!-- Automatically fetches and replaces content once page loads -->
-<div
-  lw-get="/analytics/widget"
-  lw-trigger="load"
-  lw-target="#analytics-container"
->
-  <p>Loading real-time analytics data...</p>
-</div>
+## Security considerations
 
-<div id="analytics-container"></div>
-```
+Litewire inserts response bodies as HTML. Only return trusted or appropriately
+sanitized HTML from your server.
+
+`lw:state` and event-expression attributes are evaluated as JavaScript. Use
+them only in markup you control; do not construct these expressions from
+untrusted user input.
+
+## API reference
+
+| Attribute / API | Description |
+|---|---|
+| `lw-get`, `lw-post`, `lw-put`, `lw-delete` | Request path and HTTP method |
+| `lw-trigger` | Event name; defaults to `click` or form `submit`; `load` runs immediately |
+| `lw-target` | CSS selector for the response target |
+| `lw-swap` | `innerHTML`, `outerHTML`, `prepend`, or `append` |
+| `lw-indicator` | CSS selector for loading indicators |
+| `lw-push-url` | `true`, `false`, or a custom history URL |
+| `lw-component` | Path to a dynamically imported ES module |
+| `lw:state` | JavaScript object expression that initializes local reactive state |
+| `lw:model`, `.live`, `.change`, `.blur` | Bind a form control to a state or global model |
+| `lw:text` | Render an expression as text |
+| `lw:show` | Toggle the element's `hidden` property from an expression |
+| `lw:click`, `lw:input`, `lw:change`, `lw:submit`, `lw:keydown`, `lw:keyup`, `lw:focus`, `lw:blur` | Evaluate an expression in response to an event; supports the modifiers documented above |
+| `litewire.getModel(name)` | Read a global model |
+| `litewire.setModel(name, value)` | Set a global model and update matching bindings |
+
+**Buy my kids schoolbooks:** [https://paypal.me/justumg](https://paypal.me/justumg)
