@@ -1,6 +1,6 @@
 {
   "name": "litewire",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A lightweight HTML-driven request engine with reactive state and dynamic ES module components.",
   "main": "./litewire.js",
   "module": "./litewire.js",
