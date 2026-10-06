@@ -1,8 +1,13 @@
-# Litewire 1.0.2
+# Litewire 1.0.3
 
-Litewire is a browser-side HTML-over-the-wire library. It binds requests and
-reactive behaviors to HTML attributes, swaps server-rendered HTML into the
-page, and can load ES module components on demand.
+Litewire is a small browser-side HTML-over-the-wire library. It binds HTTP
+requests, reactive state, and event expressions to HTML attributes, swaps
+server-rendered HTML into the page, and can load ES module components on
+demand.
+
+Version 1.0.3 adds reactive `lw:class` bindings, iterable lists with
+`template[lw:for]`, and event-triggered component mounting. It also improves
+radio model initialization and browser-history markup restoration.
 
 ## Contents
 
@@ -10,6 +15,7 @@ page, and can load ES module components on demand.
 - [Configuration](#configuration)
 - [AJAX requests](#ajax-requests)
 - [Reactive state and bindings](#reactive-state-and-bindings)
+- [Lists](#lists)
 - [Dynamic components](#dynamic-components)
 - [HTML swaps and DOM updates](#html-swaps-and-dom-updates)
 - [Browser history](#browser-history)
@@ -34,10 +40,10 @@ continues scanning elements added later.
 
 ### Use the npm package
 
-If version 1.0.2 is available from your configured npm registry:
+Install version 1.0.3 from your configured npm registry:
 
 ```sh
-npm install litewire@1.0.2
+npm install litewire@1.0.3
 ```
 
 Import the package from your application's JavaScript entry point:
@@ -162,9 +168,9 @@ the element is scanned:
 
 ## Reactive state and bindings
 
-Litewire 1.0.2 adds a small reactive layer using `lw:state`, `lw:model`,
-`lw:text`, `lw:show`, and event-expression attributes. The colon in these
-attribute names is intentional.
+Litewire provides a small reactive layer using `lw:state`, `lw:model`,
+`lw:text`, `lw:show`, `lw:class`, `lw:for`, and event-expression attributes.
+The colon in these attribute names is intentional.
 
 ### Local state
 
@@ -181,9 +187,10 @@ object:
 ```
 
 Assignments and deletions of top-level state properties trigger rendering of
-descendant `lw:text` and `lw:show` bindings owned by that state root. State is
-shallowly reactive: mutating a nested object or array in place does not itself
-trigger a render. Replace the top-level property to trigger one, for example
+bindings on that element and its descendants that belong to that state root.
+State is shallowly reactive:
+mutating a nested object or array in place does not itself trigger a render.
+Replace the top-level property to trigger one, for example
 `settings = { ...settings, enabled: false }`.
 
 Nested `lw:state` elements establish their own state scope. A binding uses the
@@ -196,10 +203,38 @@ global models instead.
   text. `null` and `undefined` render as an empty string.
 - `lw:show="expression"` sets the element's `hidden` property based on the
   truthiness of the result.
+- `lw:class="{ className: expression }"` adds each class whose expression is
+  truthy and removes classes previously managed by this binding when they
+  become false. Other classes on the element are left alone; a key may contain
+  multiple space-separated class names.
 
 Expressions are evaluated when the element is first scanned and again when
-their owning local state renders. Global model updates also update matching
-`lw:text` bindings.
+their owning local state renders. Global model updates refresh matching
+`lw:text` bindings and reevaluate global `lw:class` bindings and loops.
+
+### Lists
+
+Use `lw:for` on a `<template>` to repeat its contents for each value in an
+iterable. The repeated expressions can access the item name and `$index`;
+`(item, index)` also declares a named index:
+
+```html
+<ul lw:state="{ items: ['Apples', 'Pears'] }">
+  <template lw:for="(item, index) of items">
+    <li>
+      <span lw:text="index + 1"></span>.
+      <span lw:text="item"></span>
+    </li>
+  </template>
+</ul>
+```
+
+The expression must evaluate to an iterable, such as an array, string, `Set`,
+or `Map`; `null` and `undefined` render no rows. Assign a new array to the
+top-level state property to refresh the list. Litewire recreates the repeated
+DOM when the owning state renders; it does not key or preserve individual rows
+across updates. `lw:for` also works with global models set through
+`litewire.setModel()`.
 
 ### Form models
 
@@ -216,7 +251,8 @@ their owning local state renders. Global model updates also update matching
 The default `lw:model` and `lw:model.live` listen for `input`.
 `lw:model.change` listens for `change`, and `lw:model.blur` listens for `blur`.
 For checkboxes, the model value is a boolean; for radio inputs, it is the
-checked value or `null`; other controls use their value.
+checked value or `null`. Unchecked radio buttons do not initialize or overwrite
+the shared model; other controls use their value.
 
 Without a local `lw:state` root, models are stored globally and can be read or
 written with the instance methods `litewire.getModel(name)` and
@@ -271,6 +307,10 @@ Supported event modifiers:
 | `.throttle` | Runs at most once per 250 ms |
 
 Modifiers can be combined, for example `lw:click.prevent.once="save()"`.
+Debounce and throttle delays can be customized in milliseconds, for example
+`lw:input.debounce.400ms="search()"` or
+`lw:click.throttle.1000ms="refresh()"`. `.outside` listens at the document
+level so it can observe events outside the element.
 
 ## Dynamic components
 
@@ -297,7 +337,30 @@ export default class Greeting {
 ```
 
 New components inserted by a swap or added to the document are discovered
-automatically. A given element is mounted only once.
+automatically. By default, and with `lw-trigger="load"`, a component mounts
+when discovered. Set `lw-trigger` to another event name to defer mounting
+until that event fires. On a triggered component, `lw-target` optionally
+selects the element passed to the component constructor; the component path
+and `data-*` parameters still come from the element carrying `lw-component`.
+A component is mounted only once after a successful mount. To load one after
+an event and mount it into another element, put `lw-trigger` and `lw-target`
+on the component source:
+
+```html
+<button
+  type="button"
+  lw-component="components/widget.js"
+  lw-trigger="click"
+  lw-target="#widget"
+  data-mode="compact"
+>
+  Load widget
+</button>
+<div id="widget"></div>
+```
+
+The module path and `data-*` parameters come from the element carrying
+`lw-component`; `lw-target` is the element passed to the component.
 
 ## HTML swaps and DOM updates
 
@@ -332,11 +395,13 @@ a custom URL as the attribute value:
 </a>
 ```
 
-Litewire stores the URL, target selector, and target HTML in history state.
-When navigating with Back or Forward, it restores cached HTML when the state
-contains a selector and markup and the target still exists. Otherwise it
-attempts to fetch the stored URL. This caches only the selected target's HTML,
-not the complete document or JavaScript state.
+Litewire stores the URL, target selector, swap type, and target markup in
+history state. When it creates the initial history entry, it saves the current
+markup so Back can restore the prior view. For `outerHTML`, cached markup
+includes the target element itself. When navigating with Back or Forward,
+Litewire restores cached markup when the target still exists; otherwise it
+attempts to fetch the stored URL. This caches only the selected target's
+markup, not the complete document or JavaScript state.
 
 ## Lifecycle events
 
@@ -387,7 +452,7 @@ untrusted user input.
 | Attribute / API | Description |
 |---|---|
 | `lw-get`, `lw-post`, `lw-put`, `lw-delete` | Request path and HTTP method |
-| `lw-trigger` | Event name; defaults to `click` or form `submit`; `load` runs immediately |
+| `lw-trigger` | Request event (defaults to `click` or form `submit`; `load` runs on scan); for components, event to defer mounting |
 | `lw-target` | CSS selector for the response target |
 | `lw-swap` | `innerHTML`, `outerHTML`, `prepend`, or `append` |
 | `lw-indicator` | CSS selector for loading indicators |
@@ -397,6 +462,8 @@ untrusted user input.
 | `lw:model`, `.live`, `.change`, `.blur` | Bind a form control to a state or global model |
 | `lw:text` | Render an expression as text |
 | `lw:show` | Toggle the element's `hidden` property from an expression |
+| `lw:class` | Add or remove classes reactively from an object expression |
+| `template[lw:for]` | Repeat template contents for an iterable expression; item and index variables are available to bindings |
 | `lw:click`, `lw:input`, `lw:change`, `lw:submit`, `lw:keydown`, `lw:keyup`, `lw:focus`, `lw:blur` | Evaluate an expression in response to an event; supports the modifiers documented above |
 | `litewire.getModel(name)` | Read a global model |
 | `litewire.setModel(name, value)` | Set a global model and update matching bindings |
