@@ -1,11 +1,11 @@
-# Litewire 1.0.3
+# Litewire 1.0.5
 
 Litewire is a small browser-side HTML-over-the-wire library. It binds HTTP
 requests, reactive state, and event expressions to HTML attributes, swaps
 server-rendered HTML into the page, and can load ES module components on
 demand.
 
-Version 1.0.3 adds reactive `lw:class` bindings, iterable lists with
+Version 1.0.5 adds reactive `lw:class` bindings, iterable lists with
 `template[lw:for]`, and event-triggered component mounting. It also improves
 radio model initialization and browser-history markup restoration.
 
@@ -42,10 +42,10 @@ continues scanning elements added later.
 
 ### Use the npm package
 
-Install version 1.0.3 from your configured npm registry:
+Install version 1.0.5 from your configured npm registry:
 
 ```sh
-npm install litewire@1.0.3
+npm install litewire@1.0.5
 ```
 
 Import the package from your application's JavaScript entry point:
