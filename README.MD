@@ -12,6 +12,7 @@ radio model initialization and browser-history markup restoration.
 ## Contents
 
 - [Install and start](#install-and-start)
+- [End-to-end example](#end-to-end-example)
 - [Configuration](#configuration)
 - [AJAX requests](#ajax-requests)
 - [Reactive state and bindings](#reactive-state-and-bindings)
@@ -21,6 +22,7 @@ radio model initialization and browser-history markup restoration.
 - [Browser history](#browser-history)
 - [Lifecycle events](#lifecycle-events)
 - [CSRF](#csrf)
+- [Troubleshooting](#troubleshooting)
 - [Security considerations](#security-considerations)
 - [API reference](#api-reference)
 
@@ -71,6 +73,45 @@ and observers.
 
 Litewire sends a GET request when the button is clicked and replaces the
 contents of `#result` with the response HTML.
+
+## End-to-end example
+
+This example uses an HTML form to submit a search query and swaps the
+server-rendered result into a separate element:
+
+```html
+<form
+  lw-get="/search"
+  lw-target="#search-results"
+  lw-indicator="#search-status"
+>
+  <label>
+    Search
+    <input name="q" type="search" required>
+  </label>
+  <button type="submit">Search</button>
+  <span id="search-status" aria-live="polite">Ready</span>
+</form>
+
+<section id="search-results" aria-live="polite">
+  Enter a query to see results.
+</section>
+```
+
+The browser sends a request like `GET /search?q=...`. The endpoint should
+return an HTML fragment, for example:
+
+```html
+<h2>Results for “tea”</h2>
+<ul>
+  <li>Green tea</li>
+  <li>Black tea</li>
+</ul>
+```
+
+Litewire replaces the contents of `#search-results` with that fragment. The
+new content is scanned for Litewire attributes and any `lw-component` modules
+are loaded. No JSON decoding or client-side template rendering is performed.
 
 ## Configuration
 
@@ -166,6 +207,33 @@ the element is scanned:
 <div id="account-summary"></div>
 ```
 
+### Request and form behavior
+
+- A form listens for `submit` by default. Other elements listen for `click`.
+  Set `lw-trigger` to a DOM event name to use another event; `load` runs the
+  request immediately when the element is discovered.
+- A GET request serializes all successful controls in the nearest containing
+  form as URL query parameters. If there is no containing form, a control with
+  a `name` and `value` contributes that one parameter.
+- POST, PUT, and DELETE requests send the nearest containing form as
+  `FormData`. If there is no form, Litewire sends no request body.
+- Litewire checks `response.ok`; a non-success status is treated as a request
+  failure. Successful response bodies are read as text and inserted as HTML.
+  Set the response `Content-Type` appropriately on the server, even though
+  Litewire does not parse it.
+- `lw-target` is resolved with `document.querySelector`. If omitted, the
+  triggering element is the target. Ensure the selector matches the intended
+  element when the response is applied.
+- A trigger and each loading indicator receive the configured loading class
+  while the request is in flight. By default, indicators are descendants with
+  the `litewire-indicator` class; `lw-indicator` can select indicators
+  elsewhere in the document.
+- Request failures are logged to the console and emit `litewire:error` from
+  the trigger. The loading class is removed on both success and failure.
+
+`lw-trigger="load"` is useful for initial content, but avoid putting it on
+large numbers of elements if they would all issue requests at once.
+
 ## Reactive state and bindings
 
 Litewire provides a small reactive layer using `lw:state`, `lw:model`,
@@ -259,10 +327,35 @@ written with the instance methods `litewire.getModel(name)` and
 `litewire.setModel(name, value)`. Global model changes dispatch a
 `litewire:model` event on `document`, with `{ name, value }` in `event.detail`.
 
+For example, a control outside a local state root can populate a global model,
+and a matching text binding can display it:
+
+```html
+<input name="status" lw:model="status" aria-label="Status">
+<p>Current status: <span lw:text="status"></span></p>
+
+<script type="module">
+  import "litewire";
+
+  window.addEventListener("DOMContentLoaded", () => {
+    window.litewire.setModel("status", "Ready");
+  });
+</script>
+```
+
+When setting global models from application code, set them on the initialized
+`window.litewire` instance. `setModel()` updates a `lw:text` binding whose
+expression is exactly that model name, reevaluates global `lw:class` and
+`lw:for` bindings, and dispatches `litewire:model`.
+
 A model name beginning with `#` or `.` is treated as a CSS selector instead of
 a state key. Litewire copies the control's value to matching elements (to
 `value` for form controls, otherwise to `textContent`) and dispatches
 `litewire:model` on each target with `{ value }` in `event.detail`.
+
+For example, `lw:model="#live-preview"` copies an input value to the
+`textContent` of the element with that ID. Selector-based models update the
+matching targets; they are not reactive state properties.
 
 ### Event expressions
 
@@ -316,9 +409,9 @@ level so it can observe events outside the element.
 
 An element with `lw-component` dynamically imports a JavaScript module. The
 path is joined to Litewire's base URL. Litewire selects the module's default
-export first, then a named `imageUploader` export, then the first export. If
-the selected export is a function, it is called with the host element and its
-`data-*` attributes converted to an object:
+export first, then its first export. If the selected export is a function, it
+is called with the host element and its `data-*` attributes converted to an
+object:
 
 ```html
 <div
@@ -438,6 +531,19 @@ When this meta tag is present, Litewire adds its token as the
 The server must still validate the token and enforce its own authorization and
 request protections.
 
+## Troubleshooting
+
+| Symptom | Things to check |
+|---|---|
+| The global `window.litewire` is missing | Load Litewire in a browser as a module and check the console for module loading errors. Auto-initialization occurs after the document is ready. |
+| A request does not run | Confirm the element has one of `lw-get`, `lw-post`, `lw-put`, or `lw-delete`. Check its default or configured `lw-trigger` event and whether another handler prevents the event from reaching it. |
+| The server receives no form values | Make sure the trigger is inside the form, or is the form itself. Non-GET requests without a containing form have no body. For GET, a standalone control needs both `name` and `value`. |
+| The request succeeds but the page does not change | Return an HTML fragment, verify `lw-target` matches an element, and check that the selected `lw-swap` behavior is suitable. |
+| A request reports an error | Inspect the browser console and the `litewire:error` event. Litewire treats HTTP statuses outside the 2xx range as failures. |
+| A state binding stays unchanged | Confirm the binding is under the intended `lw:state` root. Replace a top-level state property; nested mutations are not observed. |
+| A component does not mount | Check the module URL, its default or first export, and that the export is a function. For deferred components, verify the triggering event and optional `lw-target` selector. |
+| A directive in newly inserted HTML does not run | Ensure the HTML is inserted through a Litewire swap or added to the observed document body. The observer watches additions under `document.body`. |
+
 ## Security considerations
 
 Litewire inserts response bodies as HTML. Only return trusted or appropriately
@@ -453,11 +559,11 @@ untrusted user input.
 |---|---|
 | `lw-get`, `lw-post`, `lw-put`, `lw-delete` | Request path and HTTP method |
 | `lw-trigger` | Request event (defaults to `click` or form `submit`; `load` runs on scan); for components, event to defer mounting |
-| `lw-target` | CSS selector for the response target |
+| `lw-target` | CSS selector for the response target; for a triggered component, selects the element passed to the component |
 | `lw-swap` | `innerHTML`, `outerHTML`, `prepend`, or `append` |
 | `lw-indicator` | CSS selector for loading indicators |
 | `lw-push-url` | `true`, `false`, or a custom history URL |
-| `lw-component` | Path to a dynamically imported ES module |
+| `lw-component` | Path to a dynamically imported ES module; its default export or first export is mounted |
 | `lw:state` | JavaScript object expression that initializes local reactive state |
 | `lw:model`, `.live`, `.change`, `.blur` | Bind a form control to a state or global model |
 | `lw:text` | Render an expression as text |
@@ -467,5 +573,11 @@ untrusted user input.
 | `lw:click`, `lw:input`, `lw:change`, `lw:submit`, `lw:keydown`, `lw:keyup`, `lw:focus`, `lw:blur` | Evaluate an expression in response to an event; supports the modifiers documented above |
 | `litewire.getModel(name)` | Read a global model |
 | `litewire.setModel(name, value)` | Set a global model and update matching bindings |
+| `new Litewire({ baseUrl, loadingClass })` | Construct and initialize an instance with optional configuration |
+
+The browser module exports the `Litewire` class as its default export and
+auto-creates `window.litewire` if that global is not already set. When creating
+a custom instance, set `window.litewire` to a placeholder before importing the
+module if needed to prevent auto-initialization, then assign the instance.
 
 **Buy my kids schoolbooks:** [https://paypal.me/justumg](https://paypal.me/justumg)
